@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chromosome Rearrangement And Visualization Explorer v1.6</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; display: flex; height: 100vh; overflow: hidden; background: #f8fafc; color: #334155; }
+        
+        .sidebar { width: 320px; background: #ffffff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; z-index: 10; box-shadow: 2px 0 8px rgba(0,0,0,0.02); flex-shrink: 0; overflow-y: auto; }
+        .sidebar-header { 
+            padding: 16px 20px; 
+            background: linear-gradient(135deg, #3b82f6, #06b6d4); 
+            color: #fff; 
+            font-size: 16px; 
+            font-weight: 600; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between;
+            position: sticky; 
+            top: 0; 
+            z-index: 20; 
+        }
+        .module { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; flex-direction: column; flex-shrink: 0; }
+        .module h3 { font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 6px; }
+        .file-input-wrapper { margin-top: 4px; }
+        input[type="file"] { width: 100%; font-size: 12px; padding: 6px; border: 1px dashed #cbd5e1; border-radius: 6px; background: #f8fafc; cursor: pointer; }
+        input[type="color"] { border: 1px solid #cbd5e1; border-radius: 4px; padding: 0; cursor: pointer; height: 26px; width: 32px; background: none; }
+
+        #mergeThreshold::-webkit-inner-spin-button, 
+        #mergeThreshold::-webkit-outer-spin-button { 
+            -webkit-appearance: none; margin: 0; 
+        }
+        #mergeThreshold { -moz-appearance: textfield; }
+        
+        .number-input-container { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+        .arrow-btn {
+            cursor: pointer; padding: 0px 5px; background-color: #f1f5f9; border: 1px solid #cbd5e1;
+            border-radius: 3px; user-select: none; font-size: 9px; line-height: 12px; color: #475569;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .arrow-btn:hover { background-color: #e2e8f0; color: #0f172a; }
+
+        .species-order-list, .cut-record-list { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; margin-top: 6px; scroll-behavior: smooth; }
+        .species-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; font-weight: 500; }
+        .species-btns { display: flex; align-items: center; gap: 4px; }
+        .species-btns button { background: none; border: none; cursor: pointer; font-size: 12px; padding: 2px 6px; color: #475569; }
+        .species-btns button:hover { color: #0f172a; font-weight: bold; }
+        .cut-item { padding: 8px 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; display: flex; flex-direction: column; gap: 6px; transition: background-color 0.3s ease; }
+        .cut-item.highlight-active { background-color: #bae6fd !important; border-color: #3b82f6 !important; }
+        .cut-item-header { font-size: 12px; color: #0f172a; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+        .cut-item-action { display: flex; gap: 6px; align-items: center; }
+        .cut-item-action input { flex: 1; min-width: 0; font-size: 12px; padding: 4px; border: 1px solid #94a3b8; border-radius: 4px; }
+        .del-btn { color: #ef4444; background: none; border: none; cursor: pointer; font-size: 12px; }
+
+        .main-content { flex: 1; display: flex; flex-direction: column; background: #ffffff; position: relative; overflow: hidden; }
+        .toolbar { min-height: 54px; background: #ffffff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; padding: 8px 20px; gap: 12px; z-index: 5; flex-shrink: 0; flex-wrap: wrap; }
+        .btn { padding: 6px 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
+        .btn:hover { background: #2563eb; }
+        .btn.active { background: #ef4444; } 
+        .btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+        .btn-secondary { background: #64748b; }
+        .btn-secondary:hover:not(:disabled) { background: #475569; }
+        .tool-group { display: flex; align-items: center; gap: 6px; padding-right: 12px; border-right: 1px solid #e2e8f0; }
+        .tool-group:last-child { border-right: none; }
+        .tool-label { font-size: 12px; color: #475569; font-weight: 500; }
+        .export-input { font-size: 12px; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 4px; height: 26px; }
+
+        .canvas-container { flex: 1; position: relative; overflow: auto; background: #ffffff; }
+        svg { display: block; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div style="display: flex; align-items: center; gap: 20px; width: 100%;">
+                <div style="background-color: white; border-radius: 50%; padding: 4px; display: flex; justify-content: center; align-items: center;">
+                    <img src="logo.png" alt="CRAVE Logo" style="width: 40px; height: 40px; border-radius: 20%;" onerror="this.style.display='none'">
+                </div>
+                <div style="display: flex; flex-direction: column; justify-content: center;">
+                    <span style="font-size: 20px; font-weight: bold; line-height: 1.2;">CRAVE v1.0</span>
+                    <span style="font-size: 10px; font-weight: normal; opacity: 0.9; margin-top: 2px;">Chromosome Rearrangement And Visualization Explorer</span>
+                </div>
+            </div>
+        </div>        
+        
+        <div class="module">
+            <h3>1. Combined Genome Annotation (GFF)</h3>
+            <div class="file-input-wrapper">
+                <input type="file" id="gffFile" accept=".txt,.tsv,.csv,.gff">
+            </div>
+        </div>
+
+        <div class="module">
+            <h3>2. Interspecies Synteny Block File</h3>
+            <div class="file-input-wrapper">
+                <input type="file" id="syntenyFile" accept=".txt,.tsv,.csv">
+            </div>
+            <div style="margin-top: 8px; font-size: 12px;">
+                <label>Merge Distance Threshold (bp):</label>
+                <div class="number-input-container">
+                    <input type="number" id="mergeThreshold" value="500000" style="flex: 1; padding: 4px; border: 1px solid #cbd5e1; border-radius: 4px;">
+                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                        <div class="arrow-btn" id="mt-btn-up" title="Multiply by 10">▲</div>
+                        <div class="arrow-btn" id="mt-btn-down" title="Divide by 10">▼</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="module">
+            <h3>3. Species Display Order & Base Colors</h3>
+            <div class="species-order-list" id="speciesOrderList">
+                <div style="color: #94a3b8; font-size: 12px; text-align: center; padding: 10px;">Please upload files first</div>
+            </div>
+        </div>
+
+        <div class="module">
+            <h3>4. Cut Points & Layout Control</h3>
+            <div class="cut-record-list" id="cutRecordList">
+                <div style="color: #94a3b8; font-size: 12px; text-align: center; padding: 10px;">No cut points yet</div>
+            </div>
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #cbd5e1;">
+                <h4 style="font-size: 12px; color: #475569; margin-bottom: 6px;">Import Layout (With Colors)</h4>
+                <div class="file-input-wrapper">
+                    <input type="file" id="importCutFile" accept=".tsv,.txt">
+                </div>
+            </div>
+        </div>
+
+        <div class="module" style="border-bottom: none;">
+            <h3>5. Data Export</h3>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary" style="flex:1; font-size: 12px;" onclick="exportCutPoints()">Save Layout</button>
+                <button class="btn btn-secondary" style="flex:1; font-size: 12px;" onclick="exportNewGff()">Save Cut GFF</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="toolbar">
+            <div class="tool-group">
+                <button class="btn btn-secondary" id="resetViewBtn">Reset View</button>
+            </div>
+            
+            <div class="tool-group">
+                <button class="btn" id="cutModeBtn">🔪 Cut Mode: OFF</button>
+                <button class="btn btn-secondary" id="undoBtn" disabled title="Undo (后退)" style="padding: 6px 8px; font-size: 14px;">↩</button>
+                <button class="btn btn-secondary" id="redoBtn" disabled title="Redo (前进)" style="padding: 6px 8px; font-size: 14px;">↪</button>
+            </div>
+
+            <div class="tool-group">
+                <span class="tool-label">Link Color:</span>
+                <input type="color" id="syntenyColorPicker" value="#60a5fa" onchange="syntenyLinkColor=this.value; renderVisualization(); saveState();">
+            </div>
+
+            <div class="tool-group">
+                <button class="btn btn-secondary" id="paintModeBtn">🖌️ Paint Mode</button>
+                <div id="paintColorWrapper" style="display:none; align-items:center; gap:4px;">
+                    <span class="tool-label">Brush:</span>
+                    <input type="color" id="paintColorPicker" value="#10b981">
+                </div>
+            </div>
+
+            <div class="tool-group" style="border-right: none; margin-left: auto;">
+                <select id="exportFormat" class="export-input">
+                    <option value="png">PNG</option>
+                    <option value="svg">SVG</option>
+                    <option value="pdf">PDF (Vector)</option>
+                </select>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <input type="number" id="exportDpi" class="export-input" value="300" style="width: 60px;" title="DPI Resolution (e.g. 300)">
+                    <span style="font-size:11px; color:#64748b;">DPI</span>
+                </div>
+                <button class="btn" onclick="exportImage()">📥 Export Image</button>
+            </div>
+        </div>
+        
+        <div style="padding: 4px 20px; font-size: 12px; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0;" id="statusInfo">
+            Tip: Upload files to start interactive analysis.
+        </div>
+
+        <div class="canvas-container" id="canvasContainer">
+            <svg id="visSvg"></svg>
+        </div>
+    </div>
+
+    <script>
+        let genomeData = {}; 
+        let speciesOrder = []; 
+        let speciesSubChrOrder = {}; 
+        let syntenyBlocks = []; 
+        let rawSyntenyLinks = []; 
+        let subChrScreenMap = {}; 
+        let cutRecords = []; 
+        
+        let speciesColors = {}; 
+        let subChrColors = {}; 
+        let syntenyLinkColor = "#60a5fa";
+        let isPaintMode = false;
+        let scaleX = 1.0; 
+        let translateX = 50;
+        let isCutMode = false;
+        let draggingData = null; 
+
+        // Undo/Redo State Management
+        let historyStack = [];
+        let historyPointer = -1;
+        
+        let rawSyntenyText = null; 
+
+        window.highlightAndScrollCutRecord = function(cutId) {
+            // 移除所有现有的高亮
+            document.querySelectorAll('.cut-item').forEach(el => el.classList.remove('highlight-active'));
+            if (!cutId) return;
+            
+            const targetItem = document.getElementById('cut_item_' + cutId);
+            if (targetItem) {
+                targetItem.classList.add('highlight-active');
+                
+                const container = document.getElementById('cutRecordList');
+                // 核心修复：使用 getBoundingClientRect 获取绝对位置，确保在任何布局下都能精准滚动
+                const containerRect = container.getBoundingClientRect();
+                const itemRect = targetItem.getBoundingClientRect();
+                
+                container.scrollTo({
+                    top: container.scrollTop + (itemRect.top - containerRect.top) - 10,
+                    behavior: 'smooth'
+                });
+            }
+        };
+
+        function loadScript(url) {
+            return new Promise((resolve, reject) => {
+                if (document.querySelector(`script[src="${url}"]`)) return resolve();
+                const script = document.createElement('script');
+                script.src = url;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
+        function saveState() {
+            const state = {
+                genomeData: JSON.parse(JSON.stringify(genomeData)),
+                speciesOrder: [...speciesOrder],
+                speciesSubChrOrder: JSON.parse(JSON.stringify(speciesSubChrOrder)),
+                cutRecords: JSON.parse(JSON.stringify(cutRecords)),
+                speciesColors: {...speciesColors},
+                subChrColors: {...subChrColors},
+                syntenyLinkColor: syntenyLinkColor
+            };
+            
+            if (historyPointer < historyStack.length - 1) {
+                historyStack = historyStack.slice(0, historyPointer + 1);
+            }
+            
+            historyStack.push(state);
+            historyPointer++;
+            updateUndoRedoUI();
+        }
+
+        function updateUndoRedoUI() {
+            document.getElementById('undoBtn').disabled = historyPointer <= 0;
+            document.getElementById('redoBtn').disabled = historyPointer >= historyStack.length - 1;
+        }
+
+        document.getElementById('undoBtn').addEventListener('click', () => {
+            if (historyPointer > 0) {
+                historyPointer--;
+                restoreState();
+            }
+        });
+
+        document.getElementById('redoBtn').addEventListener('click', () => {
+            if (historyPointer < historyStack.length - 1) {
+                historyPointer++;
+                restoreState();
+            }
+        });
+
+        function restoreState() {
+            if(historyPointer < 0 || historyPointer >= historyStack.length) return;
+            const state = historyStack[historyPointer];
+            
+            genomeData = JSON.parse(JSON.stringify(state.genomeData));
+            speciesOrder = [...state.speciesOrder];
+            speciesSubChrOrder = JSON.parse(JSON.stringify(state.speciesSubChrOrder));
+            cutRecords = JSON.parse(JSON.stringify(state.cutRecords));
+            speciesColors = {...state.speciesColors};
+            subChrColors = {...state.subChrColors};
+            syntenyLinkColor = state.syntenyLinkColor;
+            document.getElementById('syntenyColorPicker').value = syntenyLinkColor;
+            
+            renderSpeciesOrderUI();
+            renderCutRecordsUI();
+            renderVisualization();
+            updateUndoRedoUI();
+        }
+
+        document.getElementById('gffFile').addEventListener('change', handleGffUpload);
+        document.getElementById('syntenyFile').addEventListener('change', handleSyntenyUpload);
+        document.getElementById('importCutFile').addEventListener('change', handleCutImport);
+        
+        const mergeThresholdInput = document.getElementById('mergeThreshold');
+        const mtBtnUp = document.getElementById('mt-btn-up');
+        const mtBtnDown = document.getElementById('mt-btn-down');
+
+        mergeThresholdInput.addEventListener('change', () => {
+            if(rawSyntenyLinks.length > 0) { mergeSyntenyLinks(); renderVisualization(); }
+        });
+
+        mtBtnUp.addEventListener('click', () => {
+            let val = parseFloat(mergeThresholdInput.value) || 0;
+            mergeThresholdInput.value = val === 0 ? 5 : val * 10;
+            mergeThresholdInput.dispatchEvent(new Event('change')); 
+        });
+
+        mtBtnDown.addEventListener('click', () => {
+            let val = parseFloat(mergeThresholdInput.value) || 0;
+            mergeThresholdInput.value = val / 10;
+            mergeThresholdInput.dispatchEvent(new Event('change')); 
+        });
+
+        mergeThresholdInput.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                mtBtnUp.click();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                mtBtnDown.click();
+            }
+        });
+
+        document.getElementById('resetViewBtn').addEventListener('click', () => {
+            scaleX = 1.0; translateX = 50; renderVisualization();
+        });
+
+        const cutModeBtn = document.getElementById('cutModeBtn');
+        cutModeBtn.addEventListener('click', () => {
+            isCutMode = !isCutMode;
+            if(isCutMode) turnOffPaintMode();
+            cutModeBtn.classList.toggle('active', isCutMode);
+            cutModeBtn.textContent = isCutMode ? '❌ Cut Mode: ON' : '🔪 Cut Mode: OFF';
+            updateStatusText();
+            renderVisualization(); 
+        });
+
+        const paintModeBtn = document.getElementById('paintModeBtn');
+        const paintColorWrapper = document.getElementById('paintColorWrapper');
+        paintModeBtn.addEventListener('click', () => {
+            isPaintMode = !isPaintMode;
+            if (isPaintMode && isCutMode) {
+                isCutMode = false;
+                cutModeBtn.classList.remove('active');
+                cutModeBtn.textContent = '🔪 Cut Mode: OFF';
+            }
+            paintModeBtn.classList.toggle('active', isPaintMode);
+            paintModeBtn.textContent = isPaintMode ? '❌ Paint Mode: ON' : '🖌️ Paint Mode';
+            paintColorWrapper.style.display = isPaintMode ? 'flex' : 'none';
+            updateStatusText();
+            renderVisualization();
+        });
+
+        function turnOffPaintMode() {
+            isPaintMode = false;
+            paintModeBtn.classList.remove('active');
+            paintModeBtn.textContent = '🖌️ Paint Mode';
+            paintColorWrapper.style.display = 'none';
+        }
+
+        function updateStatusText() {
+            const status = document.getElementById('statusInfo');
+            if (isCutMode) status.textContent = 'Tip: Mouse is a crosshair. Click on a bar to cut accurately.';
+            else if (isPaintMode) status.textContent = 'Tip: Select brush color and click on any chromosome bar to paint it independently.';
+            else status.textContent = 'Tip: Drag mode restored. Move chromosomes horizontally to rearrange them. Click bars to locate cut records.';
+        }
+
+        function handleGffUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                parseGffContent(evt.target.result);
+                if (speciesOrder.length > 0) {
+                    document.getElementById('statusInfo').textContent = `Successfully loaded annotation file. Species included: ${speciesOrder.join(', ')}`;
+                    cutRecords = []; 
+                    
+                    if (rawSyntenyText) {
+                        parseSyntenyContent(rawSyntenyText);
+                        mergeSyntenyLinks();
+                    }
+
+                    renderSpeciesOrderUI();
+                    renderCutRecordsUI();
+                    renderVisualization();
+                    
+                    historyStack = [];
+                    historyPointer = -1;
+                    saveState(); 
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function parseGffContent(text) {
+            genomeData = {}; speciesSubChrOrder = {}; speciesColors = {}; subChrColors = {};
+            let speciesSetList = []; 
+            let speciesSetMap = new Set();
+            let customChrOrder = {}; 
+            
+            const lines = text.split(/[\r\n]+/);
+            for (let line of lines) {
+                let trimmed = line.trim();
+                if (!trimmed) continue;
+                
+                if (trimmed.startsWith('#')) {
+                    let match = trimmed.match(/^#([^:]+):(.+)$/);
+                    if (match) {
+                        let sp = match[1].trim();
+                        let chrs = match[2].trim().split(/[\t\s]+/).filter(Boolean);
+                        if (chrs.length > 0) {
+                            customChrOrder[sp] = chrs;
+                            if (!speciesSetMap.has(sp)) {
+                                speciesSetMap.add(sp);
+                                speciesSetList.push(sp);
+                            }
+                        }
+                    }
+                    continue; 
+                }
+                
+                const parts = trimmed.split(/[\t,\s]+/).filter(Boolean);
+                if (parts.length < 4) continue;
+                
+                const chrId = parts[0].replace(/['"]/g, ''); 
+                const geneId = parts[1].replace(/['"]/g, '');
+                const start = parseInt(parts[2]);
+                const end = parseInt(parts[3]);
+                
+                if (isNaN(start) || isNaN(end)) continue;
+                
+                let species = "SpeciesA";
+                const match = chrId.match(/^([a-zA-Z]+)/);
+                if (match) species = match[1];
+
+                if (!speciesSetMap.has(species)) {
+                    speciesSetMap.add(species);
+                    speciesSetList.push(species);
+                }
+
+                if (!speciesColors[species]) speciesColors[species] = "#000000"; 
+
+                if (!genomeData[species]) genomeData[species] = {};
+                if (!genomeData[species][chrId]) {
+                    genomeData[species][chrId] = { id: chrId, length: 0, genes: [], subChrs: [{ id: chrId, startOffset: 0, length: 0 }] };
+                }
+                
+                const chrObj = genomeData[species][chrId];
+                chrObj.genes.push({ id: geneId, start, end, raw: trimmed });
+                
+                const maxCoord = Math.max(start, end);
+                if (maxCoord > chrObj.length) {
+                    chrObj.length = maxCoord;
+                    chrObj.subChrs[0].length = maxCoord;
+                }
+            }
+            
+            speciesOrder = speciesSetList;
+            for (let sp of speciesOrder) {
+                speciesSubChrOrder[sp] = [];
+                let chrKeys = Object.keys(genomeData[sp] || {});
+                
+                if (customChrOrder[sp]) {
+                    chrKeys.sort((a, b) => {
+                        let idxA = customChrOrder[sp].indexOf(a);
+                        let idxB = customChrOrder[sp].indexOf(b);
+                        if (idxA === -1 && idxB === -1) return a.localeCompare(b, undefined, {numeric: true});
+                        if (idxA === -1) return 1;
+                        if (idxB === -1) return -1;
+                        return idxA - idxB;
+                    });
+                } else {
+                    chrKeys.sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
+                }
+                
+                for (let chrId of chrKeys) {
+                    for (let subChr of genomeData[sp][chrId].subChrs) {
+                        speciesSubChrOrder[sp].push({ chrId: chrId, subChrId: subChr.id });
+                    }
+                }
+            }
+        }
+
+        function handleCutImport(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                parseCutContent(evt.target.result);
+                saveState();
+                e.target.value = ''; 
+            };
+            reader.readAsText(file);
+        }
+
+        function parseCutContent(text) {
+            if (Object.keys(genomeData).length === 0) return alert("Please upload the GFF file first!");
+            const lines = text.split(/[\r\n]+/);
+            let importCount = 0;
+            let importedOrders = {}; 
+            
+            for (let i = 0; i < lines.length; i++) { 
+                const line = lines[i].trim();
+                if (!line) continue;
+                
+                if (line.startsWith('#SPECIES_ORDER')) {
+                    const spStr = line.split('\t')[1];
+                    if (spStr) speciesOrder = spStr.split(',');
+                    continue;
+                }
+                if (line.startsWith('#ORDER')) {
+                    const parts = line.split('\t'); 
+                    if (parts.length >= 3) importedOrders[parts[1].trim()] = parts[2].trim().split(','); 
+                    continue;
+                }
+                if (line.startsWith('#LINK_COLOR')) {
+                    syntenyLinkColor = line.split('\t')[1].trim();
+                    document.getElementById('syntenyColorPicker').value = syntenyLinkColor;
+                    continue;
+                }
+                if (line.startsWith('#SPECIES_COLORS')) {
+                    const colorsStr = line.split('\t')[1];
+                    if(colorsStr) {
+                        colorsStr.split(',').forEach(pair => {
+                            let [sp, color] = pair.split(':');
+                            if(sp && color) speciesColors[sp] = color;
+                        });
+                    }
+                    continue;
+                }
+                if (line.startsWith('#BAR_COLORS')) {
+                    const colorsStr = line.split('\t')[1];
+                    if(colorsStr) {
+                        colorsStr.split(',').forEach(pair => {
+                            let [uid, color] = pair.split(':');
+                            if(uid && color) subChrColors[uid] = color;
+                        });
+                    }
+                    continue;
+                }
+                
+                const parts = line.split(/[\t,\s]+/);
+                if (parts[0] === 'Species' || parts.length < 5) continue;
+                
+                const sp = parts[0], origSubId = parts[1], leftSubId = parts[2], rightSubId = parts[3], pos = parseInt(parts[4]);
+                if (isNaN(pos) || !genomeData[sp]) continue;
+                
+                let targetChrId = null, targetSubChr = null, subChrIdx = -1;
+                for (let chrId in genomeData[sp]) {
+                    const chrObj = genomeData[sp][chrId];
+                    subChrIdx = chrObj.subChrs.findIndex(s => s.id === origSubId);
+                    if (subChrIdx !== -1) {
+                        targetChrId = chrId; targetSubChr = chrObj.subChrs[subChrIdx]; break;
+                    }
+                }
+                
+                if (!targetSubChr) continue; 
+                const leftLength = pos - targetSubChr.startOffset;
+                const rightLength = targetSubChr.length - leftLength;
+                
+                if (leftLength <= 0 || rightLength <= 0) continue; 
+                
+                targetSubChr.length = leftLength;
+                targetSubChr.id = leftSubId;
+                genomeData[sp][targetChrId].subChrs.splice(subChrIdx + 1, 0, { id: rightSubId, startOffset: pos, length: rightLength });
+                
+                cutRecords.push({ id: 'cut_import_'+Date.now()+'_'+importCount, sp: sp, chrId: targetChrId, origSubId: origSubId, leftSubId: leftSubId, rightSubId: rightSubId, pos: pos });
+                
+                const orderArr = speciesSubChrOrder[sp];
+                const orderIdx = orderArr.findIndex(item => item.subChrId === origSubId);
+                if (orderIdx !== -1) {
+                    orderArr.splice(orderIdx, 1, { chrId: targetChrId, subChrId: leftSubId }, { chrId: targetChrId, subChrId: rightSubId });
+                }
+                importCount++;
+            }
+            
+            for (let sp in importedOrders) {
+                if (speciesSubChrOrder[sp]) {
+                    let newOrder = [], availableSubChrs = {};
+                    for (let item of speciesSubChrOrder[sp]) availableSubChrs[item.subChrId] = item.chrId;
+                    for (let subId of importedOrders[sp]) {
+                        if (availableSubChrs[subId]) { newOrder.push({ chrId: availableSubChrs[subId], subChrId: subId }); delete availableSubChrs[subId]; }
+                    }
+                    for (let subId in availableSubChrs) newOrder.push({ chrId: availableSubChrs[subId], subChrId: subId });
+                    speciesSubChrOrder[sp] = newOrder;
+                }
+            }
+            
+            document.getElementById('statusInfo').textContent = `Successfully recovered layout and colors (${importCount} cuts)!`;
+            renderSpeciesOrderUI(); renderCutRecordsUI(); renderVisualization();
+        }
+
+        function renderCutRecordsUI() {
+            const container = document.getElementById('cutRecordList');
+            if (cutRecords.length === 0) return container.innerHTML = '<div style="color: #94a3b8; font-size: 12px; text-align: center; padding: 10px;">No cut points yet</div>';
+            container.innerHTML = '';
+            
+            const sortedRecords = [...cutRecords].sort((a, b) => {
+                if (a.sp !== b.sp) return a.sp.localeCompare(b.sp);
+                if (a.chrId !== b.chrId) return a.chrId.localeCompare(b.chrId, undefined, {numeric: true});
+                return a.pos - b.pos;
+            });
+
+            sortedRecords.forEach(record => {
+                const item = document.createElement('div');
+                item.className = 'cut-item';
+                item.id = 'cut_item_' + record.id;
+                item.innerHTML = `
+                    <div class="cut-item-header"><span>${record.sp} - ${record.origSubId}</span><button class="del-btn" onclick="deleteCut('${record.id}')">Delete</button></div>
+                    <div class="cut-item-action">
+                        <input type="number" id="input_${record.id}" value="${record.pos}">
+                        <button class="btn" style="padding: 4px 10px; font-size: 12px;" onclick="updateCutPos('${record.id}')">Adjust</button>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+            
+            sortedRecords.forEach(record => {
+                const inputEl = document.getElementById('input_' + record.id);
+                let lastVal = parseInt(inputEl.value);
+
+                inputEl.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        updateCutPos(record.id);
+                    }
+                });
+
+                inputEl.addEventListener('input', (e) => {
+                    let currentVal = parseInt(inputEl.value);
+                    if (isNaN(currentVal)) return;
+
+                    if (currentVal === lastVal + 1 || currentVal === lastVal - 1) {
+                        const chrObj = genomeData[record.sp][record.chrId];
+                        
+                        const genes = chrObj.genes.slice().sort((a, b) => a.start - b.start);
+                        let intervals = [1, chrObj.length];
+                        for(let i = 0; i < genes.length - 1; i++) {
+                            intervals.push(Math.round((genes[i].end + genes[i+1].start) / 2));
+                        }
+                        intervals.sort((a, b) => a - b);
+                        intervals = [...new Set(intervals)]; 
+
+                        if (currentVal > lastVal) {
+                            let next = intervals.find(v => v > lastVal);
+                            if (next) inputEl.value = next;
+                        } else {
+                            let prev = [...intervals].reverse().find(v => v < lastVal);
+                            if (prev) inputEl.value = prev;
+                        }
+                    }
+                    lastVal = parseInt(inputEl.value);
+                });
+            });
+        }
+
+        window.updateCutPos = function(recordId) {
+            const record = cutRecords.find(r => r.id === recordId);
+            if (!record) return;
+            const newPos = parseInt(document.getElementById('input_' + recordId).value);
+            if (isNaN(newPos)) return alert("Invalid number!");
+
+            const chrObj = genomeData[record.sp][record.chrId];
+            const oldPos = record.pos;
+
+            // 核心修复：不依赖可能已改变的 ID，而是通过物理坐标系寻找紧邻旧切割位点的左右片段
+            const leftSub = chrObj.subChrs.find(s => s.startOffset + s.length === oldPos);
+            const rightSub = chrObj.subChrs.find(s => s.startOffset === oldPos);
+            
+            if (!leftSub || !rightSub) {
+                alert("未找到相邻片段，坐标可能已损坏。");
+                return;
+            }
+            
+            // 确定微调的极限边界（不能越过相邻的其他切割位点）
+            const minPos = leftSub.startOffset;
+            const maxPos = rightSub.startOffset + rightSub.length;
+            
+            if (newPos <= minPos || newPos >= maxPos) {
+                alert(`微调位置必须在相邻片段范围内：${minPos} 到 ${maxPos}！`);
+                document.getElementById('input_' + recordId).value = oldPos; // 恢复旧值
+                return;
+            }
+            
+            // 根据调整的跨度，对左右片段的起始点和长度进行同步加减核算
+            leftSub.length = newPos - leftSub.startOffset;
+            rightSub.length = maxPos - newPos; 
+            rightSub.startOffset = newPos;
+            
+            // 更新记录中的切割位置
+            record.pos = newPos; 
+            
+            renderVisualization();
+            saveState();
+        };
+
+        window.deleteCut = function(recordId) {
+            const recordIndex = cutRecords.findIndex(r => r.id === recordId);
+            if (recordIndex === -1) return;
+            const record = cutRecords[recordIndex];
+
+            const chrObj = genomeData[record.sp][record.chrId];
+
+            // 通过物理坐标系寻找紧邻切割位点的左右片段
+            const leftSubIdx = chrObj.subChrs.findIndex(s => s.startOffset + s.length === record.pos);
+            const rightSubIdx = chrObj.subChrs.findIndex(s => s.startOffset === record.pos);
+
+            if (leftSubIdx === -1 || rightSubIdx === -1) {
+                alert("无法删除此剪切位点！相邻片段已被二次剪切，请先删除其子剪切位点。");
+                return;
+            }
+
+            const leftSub = chrObj.subChrs[leftSubIdx];
+            const rightSub = chrObj.subChrs[rightSubIdx];
+            
+            const leftOldId = leftSub.id;
+            const rightOldId = rightSub.id;
+
+            // 1. 合并片段：将右片段的长度加到左侧片段上，并恢复原始ID
+            leftSub.length += rightSub.length;
+            leftSub.id = record.origSubId;
+
+            // 2. 从数据模型中移除右侧片段
+            chrObj.subChrs.splice(rightSubIdx, 1);
+
+            // 3. 从视图的排列顺序中更新（将左片段重命名，并删除右片段）
+            const orderArr = speciesSubChrOrder[record.sp];
+            const leftOrderIdx = orderArr.findIndex(item => item.subChrId === leftOldId);
+            const rightOrderIdx = orderArr.findIndex(item => item.subChrId === rightOldId);
+            
+            if (leftOrderIdx !== -1) {
+                orderArr[leftOrderIdx].subChrId = record.origSubId;
+            }
+            if (rightOrderIdx !== -1) {
+                orderArr.splice(rightOrderIdx, 1);
+            }
+
+            // 4. 清理颜色记录 (可选，避免内存泄漏)
+            if (subChrColors[record.sp + "::" + leftOldId]) {
+                subChrColors[record.sp + "::" + record.origSubId] = subChrColors[record.sp + "::" + leftOldId];
+                delete subChrColors[record.sp + "::" + leftOldId];
+                delete subChrColors[record.sp + "::" + rightOldId];
+            }
+
+            // 5. 移除切割记录
+            cutRecords.splice(recordIndex, 1);
+
+            // 6. 重新渲染UI与视图并保存状态
+            renderCutRecordsUI();
+            renderVisualization();
+            saveState();
+        };
+
+        function triggerCut(sp, chrId, subChr, evt, subXOffset, subPixelWidth) {
+            const svgRect = document.getElementById('visSvg').getBoundingClientRect();
+            const clickRatio = (evt.clientX - svgRect.left - subXOffset) / subPixelWidth;
+            if (clickRatio <= 0.05 || clickRatio >= 0.95) return alert("Click the middle area for a valid cut!");
+
+            const chrObj = genomeData[sp][chrId];
+            let roughCutPos = Math.round(subChr.startOffset + clickRatio * subChr.length);
+            let finalCutPos = roughCutPos;
+
+            if (syntenyBlocks && syntenyBlocks.length > 0) {
+                let blocksOnChr = [];
+                syntenyBlocks.forEach(b => {
+                    if (b.sp1 === sp && b.chr1 === chrId) blocksOnChr.push({ start: b.pos1_start, end: b.pos1_end });
+                    if (b.sp2 === sp && b.chr2 === chrId) blocksOnChr.push({ start: b.pos2_start, end: b.pos2_end });
+                });
+                
+                blocksOnChr.sort((a, b) => a.start - b.start);
+                
+                let minDistance = Infinity;
+                let bestSnapPos = roughCutPos;
+
+                for (let i = 0; i < blocksOnChr.length - 1; i++) {
+                    let blockA = blocksOnChr[i];
+                    let blockB = blocksOnChr[i+1];
+                    
+                    if (blockA.end < blockB.start) {
+                        let gapMid = Math.round((blockA.end + blockB.start) / 2);
+                        
+                        if (gapMid > subChr.startOffset && gapMid < (subChr.startOffset + subChr.length)) {
+                            let dist = Math.abs(gapMid - roughCutPos);
+                            if (dist < minDistance) {
+                                minDistance = dist;
+                                bestSnapPos = gapMid;
+                            }
+                        }
+                    }
+                }
+                
+                const snapThreshold = subChr.length * 0.15;
+                if (minDistance <= snapThreshold) {
+                    finalCutPos = bestSnapPos;
+                    console.log(`[Smart Cut] Clicked at ${roughCutPos}, Snapped to recombination breakpoint ${finalCutPos}`);
+                }
+            }
+
+            const cutGlobalPos = finalCutPos;
+            const idx = chrObj.subChrs.findIndex(s => s.id === subChr.id);
+            
+            const origSubId = subChr.id;
+            const origLength = subChr.length; 
+            const leftLength = cutGlobalPos - subChr.startOffset;
+            const rightLength = origLength - leftLength;
+
+            subChr.length = leftLength;
+            const newSubChrId = origSubId.includes('_') ? origSubId + 'b' : chrId + '_b';
+            subChr.id = origSubId.includes('_') ? origSubId + 'a' : chrId + '_a';
+            
+            const newCutId = 'cut_' + Date.now();
+            chrObj.subChrs.splice(idx + 1, 0, { id: newSubChrId, startOffset: cutGlobalPos, length: rightLength });
+            cutRecords.push({ id: newCutId, sp: sp, chrId: chrId, origSubId: origSubId, leftSubId: subChr.id, rightSubId: newSubChrId, pos: cutGlobalPos });
+
+            const orderArr = speciesSubChrOrder[sp];
+            const orderIdx = orderArr.findIndex(item => item.subChrId === origSubId);
+            if (orderIdx !== -1) orderArr.splice(orderIdx, 1, { chrId: chrId, subChrId: subChr.id }, { chrId: chrId, subChrId: newSubChrId });
+
+            const oldUid = sp + "::" + origSubId;
+            if (subChrColors[oldUid]) {
+                subChrColors[sp + "::" + subChr.id] = subChrColors[oldUid];
+                subChrColors[sp + "::" + newSubChrId] = subChrColors[oldUid];
+                delete subChrColors[oldUid];
+            }
+            
+            renderCutRecordsUI(); 
+            renderVisualization();
+            saveState();
+
+            setTimeout(() => {
+                highlightAndScrollCutRecord(newCutId);
+            }, 50); 
+        }
+
+        window.exportCutPoints = function() {
+            if (cutRecords.length === 0 && Object.keys(speciesSubChrOrder).length === 0) return alert("No data!");
+            
+            let content = "";
+            content += `#LINK_COLOR\t${syntenyLinkColor}\n`;
+            if (speciesOrder.length > 0) content += `#SPECIES_ORDER\t${speciesOrder.join(',')}\n`;
+            
+            const spColorsArr = Object.entries(speciesColors).map(([k,v]) => `${k}:${v}`);
+            if(spColorsArr.length > 0) content += `#SPECIES_COLORS\t${spColorsArr.join(',')}\n`;
+            
+            const barColorsArr = Object.entries(subChrColors).map(([k,v]) => `${k}:${v}`);
+            if(barColorsArr.length > 0) content += `#BAR_COLORS\t${barColorsArr.join(',')}\n`;
+            
+            for (let sp in speciesSubChrOrder) {
+                if (speciesSubChrOrder[sp].length > 0) content += `#ORDER\t${sp}\t${speciesSubChrOrder[sp].map(i => i.subChrId).join(',')}\n`;
+            }
+            
+            content += "Species\tOriginal_ID\tLeft_ID\tRight_ID\tCut_Position\n";
+            cutRecords.forEach(r => content += `${r.sp}\t${r.origSubId}\t${r.leftSubId}\t${r.rightSubId}\t${r.pos}\n`);
+            downloadFile(content, "crave_layout.tsv", "text/plain");
+        };
+
+        window.exportNewGff = function() {
+            if (Object.keys(genomeData).length === 0) return;
+            let content = "";
+            for (let sp in genomeData) {
+                for (let chrId in genomeData[sp]) {
+                    const chrObj = genomeData[sp][chrId];
+                    chrObj.genes.forEach(g => {
+                        const mid = (g.start + g.end) / 2;
+                        let targetSubId = chrId, offset = 0;
+                        for (let sub of chrObj.subChrs) {
+                            if (mid >= sub.startOffset && mid <= sub.startOffset + sub.length) {
+                                targetSubId = sub.id; offset = sub.startOffset; break;
+                            }
+                        }
+                        const parts = g.raw.trim().split(/[\t,\s]+/);
+                        if(parts.length >= 4) {
+                            parts[0] = targetSubId; 
+                            parts[2] = Math.max(1, parseInt(parts[2]) - offset); 
+                            parts[3] = Math.max(1, parseInt(parts[3]) - offset);
+                            content += parts.join("\t") + "\n";
+                        }
+                    });
+                }
+            }
+            downloadFile(content, "updated_annotation.gff", "text/plain");
+        };
+
+        window.exportImage = async function() {
+            const format = document.getElementById('exportFormat').value;
+            const dpi = parseInt(document.getElementById('exportDpi').value) || 300;
+            const scale = dpi / 96; 
+            const svgElement = document.getElementById('visSvg');
+            
+            if (speciesOrder.length === 0) return alert("No image data to export!");
+
+            const serializer = new XMLSerializer();
+            let source = serializer.serializeToString(svgElement);
+            if(!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)){
+                source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+            }
+            source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
+            const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
+
+            if (format === 'svg') {
+                downloadFile(source, 'crave_export.svg', 'image/svg+xml');
+            } else if (format === 'pdf') {
+                if (!(window.jspdf && window.jspdf.jsPDF && window.svg2pdf)) {
+                    const status = document.getElementById('statusInfo');
+                    const originalText = status.textContent;
+                    status.textContent = '正在加载 PDF 导出组件，请稍候...';
+                    try {
+                        await loadScript('https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js');
+                        await loadScript('https://unpkg.com/svg2pdf.js@3.0.0/dist/svg2pdf.umd.min.js');
+                        status.textContent = originalText;
+                    } catch (err) {
+                        status.textContent = originalText;
+                        return alert("加载 PDF 依赖库失败，请检查网络连接。");
+                    }
+                }
+
+                const { jsPDF } = window.jspdf;
+                const width = svgElement.clientWidth;
+                const height = svgElement.clientHeight;
+                const orient = width > height ? 'l' : 'p';
+                const pdf = new jsPDF({ orientation: orient, unit: 'px', format: [width, height] });
+                
+                const svgClone = svgElement.cloneNode(true);
+                svgClone.setAttribute('width', width);
+                svgClone.setAttribute('height', height);
+                
+                pdf.svg(svgClone, { x: 0, y: 0, width: width, height: height })
+                    .then(() => pdf.save('crave_export.pdf'));
+            } else {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                img.onload = function() {
+                    canvas.width = svgElement.clientWidth * scale;
+                    canvas.height = svgElement.clientHeight * scale;
+                    ctx.fillStyle = "#ffffff";
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.scale(scale, scale);
+                    ctx.drawImage(img, 0, 0);
+                    const pngUrl = canvas.toDataURL('image/png');
+                    const a = document.createElement('a');
+                    a.href = pngUrl; a.download = 'crave_export.png';
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                };
+                img.src = url;
+            }
+        };
+
+        function downloadFile(content, filename, type) {
+            const blob = new Blob([content], { type: type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function renderSpeciesOrderUI() {
+            const container = document.getElementById('speciesOrderList');
+            container.innerHTML = '';
+            speciesOrder.forEach((sp, idx) => {
+                const item = document.createElement('div');
+                item.className = 'species-item';
+                item.innerHTML = `
+                    <span>${sp}</span>
+                    <div class="species-btns">
+                        <input type="color" title="Set Species Base Color" value="${speciesColors[sp] || '#000000'}" onchange="changeSpeciesColor('${sp}', this.value)">
+                        <button onclick="moveSpecies(${idx}, -1)" ${idx === 0 ? 'disabled style="opacity:0.3"' : ''}>▲</button>
+                        <button onclick="moveSpecies(${idx}, 1)" ${idx === speciesOrder.length - 1 ? 'disabled style="opacity:0.3"' : ''}>▼</button>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        window.changeSpeciesColor = function(sp, color) {
+            speciesColors[sp] = color; 
+            renderVisualization();
+            saveState();
+        };
+
+        window.moveSpecies = function(index, direction) {
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= speciesOrder.length) return;
+            const temp = speciesOrder[index]; speciesOrder[index] = speciesOrder[newIndex]; speciesOrder[newIndex] = temp;
+            renderSpeciesOrderUI(); 
+            renderVisualization();
+            saveState();
+        };
+
+        function handleSyntenyUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                rawSyntenyText = evt.target.result; 
+                
+                if (Object.keys(genomeData).length > 0) {
+                    parseSyntenyContent(rawSyntenyText); 
+                    mergeSyntenyLinks(); 
+                    renderVisualization();
+                    document.getElementById('statusInfo').textContent = 'Synteny data updated successfully.';
+                } else {
+                    document.getElementById('statusInfo').textContent = 'Synteny data loaded. Waiting for GFF file to render...';
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function parseSyntenyContent(text) {
+            rawSyntenyLinks = []; const lines = text.split(/[\r\n]+/);
+            const geneIndex = {};
+            for (let sp in genomeData) {
+                for (let chrId in genomeData[sp]) {
+                    for (let g of genomeData[sp][chrId].genes) geneIndex[g.id] = { species: sp, chrId: chrId, centerPos: (g.start + g.end) / 2 };
+                }
+            }
+            for (let line of lines) {
+                let trimmed = line.trim(); if (!trimmed || trimmed.startsWith('#')) continue;
+                const parts = trimmed.split(/[\t,\s]+/).filter(Boolean);
+                if (parts.length < 2) continue;
+                const g1 = parts[0].replace(/['"]/g, ''), g2 = parts[1].replace(/['"]/g, '');
+                if (geneIndex[g1] && geneIndex[g2]) {
+                    rawSyntenyLinks.push({ sp1: geneIndex[g1].species, chr1: geneIndex[g1].chrId, pos1: geneIndex[g1].centerPos, sp2: geneIndex[g2].species, chr2: geneIndex[g2].chrId, pos2: geneIndex[g2].centerPos });
+                }
+            }
+        }
+
+        function mergeSyntenyLinks() {
+            syntenyBlocks = []; if(rawSyntenyLinks.length === 0) return;
+            const mergeThreshold = parseInt(document.getElementById('mergeThreshold').value) || 500000;
+            const groups = {};
+            for (let link of rawSyntenyLinks) {
+                const key = `${link.sp1}|${link.chr1}|${link.sp2}|${link.chr2}`;
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(link);
+            }
+            for (let key in groups) {
+                let group = groups[key]; group.sort((a, b) => a.pos1 - b.pos1);
+                let currentBlock = null;
+                for (let link of group) {
+                    if (!currentBlock) {
+                        currentBlock = { sp1: link.sp1, chr1: link.chr1, sp2: link.sp2, chr2: link.chr2, pos1_start: link.pos1, pos1_end: link.pos1, pos2_start: link.pos2, pos2_end: link.pos2, count: 1 };
+                    } else {
+                        if ((link.pos1 - currentBlock.pos1_end) < mergeThreshold && Math.min(Math.abs(link.pos2 - currentBlock.pos2_start), Math.abs(link.pos2 - currentBlock.pos2_end)) < mergeThreshold) {
+                            currentBlock.pos1_end = link.pos1; currentBlock.pos2_start = Math.min(currentBlock.pos2_start, link.pos2); currentBlock.pos2_end = Math.max(currentBlock.pos2_end, link.pos2); currentBlock.count++;
+                        } else {
+                            syntenyBlocks.push(currentBlock); currentBlock = { sp1: link.sp1, chr1: link.chr1, sp2: link.sp2, chr2: link.chr2, pos1_start: link.pos1, pos1_end: link.pos1, pos2_start: link.pos2, pos2_end: link.pos2, count: 1 };
+                        }
+                    }
+                }
+                if (currentBlock) syntenyBlocks.push(currentBlock);
+            }
+        }
+
+        function renderVisualization() {
+            const svg = document.getElementById('visSvg'); svg.innerHTML = ''; subChrScreenMap = {}; 
+            if (speciesOrder.length === 0) return;
+
+            const rowHeight = 160, startY = 80, baseSpanWidth = 1100 * scaleX, startX = 140 + translateX;
+            const linkGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            svg.appendChild(linkGroup);
+
+            let spIndex = 0;
+            for (let sp of speciesOrder) {
+                const spY = startY + spIndex * rowHeight;
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", 40); text.setAttribute("y", spY + 18); text.setAttribute("font-size", "16");
+                text.setAttribute("font-weight", "bold"); text.setAttribute("fill", "#0f172a"); text.textContent = sp;
+                svg.appendChild(text);
+
+                let orderedItems = speciesSubChrOrder[sp] || [], subChrList = [];
+                for (let item of orderedItems) {
+                    const chrObj = genomeData[sp]?.[item.chrId]; if (!chrObj) continue;
+                    const subChr = chrObj.subChrs.find(s => s.id === item.subChrId);
+                    if (subChr) subChrList.push({ chrId: item.chrId, subChr: subChr });
+                }
+                if (subChrList.length === 0) { spIndex++; continue; }
+
+                const totalChrs = subChrList.length, totalPhyLen = subChrList.reduce((sum, item) => sum + item.subChr.length, 0);
+                let currentGap = totalChrs > 1 ? Math.min(15 * scaleX, (baseSpanWidth * 0.15) / (totalChrs - 1)) : 0;
+                let availableWidthForChrs = Math.max(totalChrs * 5, baseSpanWidth - ((totalChrs - 1) * currentGap));
+
+                let runningX = startX;
+                for (let i = 0; i < totalChrs; i++) {
+                    const item = subChrList[i]; const { chrId, subChr } = item;
+                    const uniqueId = sp + "::" + subChr.id;
+                    const ratio = totalPhyLen > 0 ? (subChr.length / totalPhyLen) : (1 / totalChrs);
+                    const subPixelWidth = ratio * availableWidthForChrs, subXOffset = runningX;
+
+                    const barColor = subChrColors[uniqueId] || speciesColors[sp] || "#000000";
+
+                    const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    rect.setAttribute("x", subXOffset); rect.setAttribute("y", spY); rect.setAttribute("width", Math.max(1, subPixelWidth)); 
+                    rect.setAttribute("height", 32); rect.setAttribute("rx", Math.min(16, subPixelWidth / 2)); rect.setAttribute("ry", Math.min(16, subPixelWidth / 2));
+                    rect.setAttribute("fill", barColor); rect.setAttribute("stroke", "#ffffff"); rect.setAttribute("stroke-width", "2");
+                    rect.style.cursor = isCutMode ? "crosshair" : (isPaintMode ? "crosshair" : "grab");
+
+                    const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    lbl.setAttribute("x", subXOffset + subPixelWidth / 2); lbl.setAttribute("y", spY - 8); lbl.setAttribute("font-size", "11");
+                    lbl.setAttribute("text-anchor", "middle"); lbl.setAttribute("fill", "#334155"); lbl.textContent = subChr.id;
+
+                    group.appendChild(rect); if (subPixelWidth > 15) group.appendChild(lbl); svg.appendChild(group);
+
+                    rect.addEventListener('click', (evt) => {
+                        if (isPaintMode) { 
+                            evt.stopPropagation(); 
+                            subChrColors[uniqueId] = document.getElementById('paintColorPicker').value; 
+                            renderVisualization(); 
+                            saveState();
+                            return; 
+                        }
+                        
+                        // 功能2：如果未开启切割模式，点击条形棒查找并高亮关联的切割记录
+                        if (!isCutMode) {
+                            // 查找左侧或者右侧 ID 匹配，并且物种(sp)匹配的切割记录
+                            const relatedRecord = cutRecords.find(r => r.sp === sp && (r.leftSubId === subChr.id || r.rightSubId === subChr.id));
+                            if (relatedRecord) {
+                                highlightAndScrollCutRecord(relatedRecord.id);
+                            } else {
+                                highlightAndScrollCutRecord(null); // 如果点击了没切过的棒，清除高亮
+                            }
+                            return; 
+                        }
+                        
+                        evt.stopPropagation(); 
+                        triggerCut(sp, chrId, subChr, evt, subXOffset, subPixelWidth);
+                    });
+
+                    rect.addEventListener('mousedown', (evt) => {
+                        if (isCutMode || isPaintMode || evt.button !== 0) return;
+                        // 记录拖拽初始信息，但不立即修改 DOM 层级
+                        draggingData = { sp: sp, uniqueId: uniqueId, startX: evt.clientX, origX: subXOffset, groupEl: group, isMoved: false };
+                        rect.style.cursor = "grabbing"; 
+                        evt.stopPropagation();
+                    });
+
+                    subChrScreenMap[uniqueId] = { startPixel: subXOffset, endPixel: subXOffset + subPixelWidth, startOffset: subChr.startOffset, length: subChr.length, y: spY + 16, sp: sp, chrId: chrId };
+                    runningX += subPixelWidth + currentGap;
+                }
+                spIndex++;
+            }
+
+            for (let block of syntenyBlocks) {
+                const getSubChrForPos = (sp, chrId, pos) => {
+                    const chrObj = genomeData[sp]?.[chrId]; if (!chrObj) return null;
+                    for (let sc of chrObj.subChrs) if (pos >= sc.startOffset && pos <= sc.startOffset + sc.length) return sc;
+                    return chrObj.subChrs[0]; 
+                };
+                const sc1 = getSubChrForPos(block.sp1, block.chr1, block.pos1_start), sc2 = getSubChrForPos(block.sp2, block.chr2, block.pos2_start);
+                if (sc1 && sc2) {
+                    const uniqueId1 = block.sp1 + "::" + sc1.id, uniqueId2 = block.sp2 + "::" + sc2.id;
+                    if (subChrScreenMap[uniqueId1] && subChrScreenMap[uniqueId2]) {
+                        const m1 = subChrScreenMap[uniqueId1], m2 = subChrScreenMap[uniqueId2];
+                        const calcGenePixelX = (mapObj, pos) => mapObj.startPixel + (mapObj.length > 0 ? (pos - mapObj.startOffset) / mapObj.length : 0.5) * (mapObj.endPixel - mapObj.startPixel);
+                        const x1_start = calcGenePixelX(m1, block.pos1_start), x1_end = Math.max(x1_start + 1, calcGenePixelX(m1, block.pos1_end)); 
+                        const x2_start = calcGenePixelX(m2, block.pos2_start), x2_end = Math.max(x2_start + 1, calcGenePixelX(m2, block.pos2_end));
+                        const y1 = m1.y > m2.y ? m1.y - 16 : m1.y + 16, y2 = m2.y > m1.y ? m2.y - 16 : m2.y + 16, midY = (y1 + y2) / 2;
+
+                        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                        path.setAttribute("d", `M ${x1_start} ${y1} L ${x1_end} ${y1} C ${x1_end} ${midY}, ${x2_end} ${midY}, ${x2_end} ${y2} L ${x2_start} ${y2} C ${x2_start} ${midY}, ${x1_start} ${midY}, ${x1_start} ${y1} Z`);
+                        path.setAttribute("fill", syntenyLinkColor); path.setAttribute("fill-opacity", block.count > 5 ? "0.6" : "0.3"); path.setAttribute("stroke", "none");
+                        linkGroup.appendChild(path);
+                    }
+                }
+            }
+            svg.style.width = Math.max(window.innerWidth - 320, startX + baseSpanWidth + 300) + "px";
+            svg.style.height = (startY + speciesOrder.length * rowHeight + 100) + "px";
+        }
+
+        window.addEventListener('mousemove', (e) => {
+            if (!draggingData) return;
+            const dx = e.clientX - draggingData.startX;
+            
+            // 只有当鼠标移动超过3像素时，才判定为真正的拖拽
+            if (Math.abs(dx) > 3) {
+                // 在确认是拖拽后，再将元素置顶，避免破坏单纯的点击事件
+                if (!draggingData.isMoved) {
+                    document.getElementById('visSvg').appendChild(draggingData.groupEl);
+                    draggingData.isMoved = true;
+                }
+                draggingData.groupEl.setAttribute('transform', `translate(${dx}, 0)`);
+            }
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (!draggingData) return;
+            
+            const dx = e.clientX - draggingData.startX;
+            if (draggingData.isMoved && Math.abs(dx) > 3) {
+                // 处理拖拽结束逻辑
+                const dropCenterX = draggingData.origX + dx, sp = draggingData.sp, uid = draggingData.uniqueId;
+                let sortedArr = [];
+                for (let item of speciesSubChrOrder[sp]) {
+                    let itemUID = sp + "::" + item.subChrId, mapData = subChrScreenMap[itemUID];
+                    if (!mapData) continue;
+                    sortedArr.push({ item: item, centerX: itemUID === uid ? dropCenterX : mapData.startPixel + (mapData.endPixel - mapData.startPixel) / 2 });
+                }
+                sortedArr.sort((a, b) => a.centerX - b.centerX); 
+                speciesSubChrOrder[sp] = sortedArr.map(s => s.item);
+                draggingData = null; 
+                renderVisualization(); 
+                saveState();
+            } else {
+                // 如果只是单纯点击（没有移动或移动极小），恢复状态，让原生的 click 事件自然触发
+                draggingData.groupEl.querySelector('rect').style.cursor = "grab";
+                draggingData = null;
+            }
+        });
+
+        document.getElementById('canvasContainer').addEventListener('wheel', (e) => {
+            e.preventDefault(); 
+            const container = e.currentTarget;
+            const rect = container.getBoundingClientRect();
+            
+            const offsetX = e.clientX - rect.left;
+            const mouseX = offsetX + container.scrollLeft;
+            
+            const oldScale = scaleX;
+            scaleX = Math.max(0.05, Math.min(e.deltaY < 0 ? scaleX * 1.15 : scaleX / 1.15, 50.0)); 
+            const actualFactor = scaleX / oldScale;
+            
+            renderVisualization();
+
+            const startX = 140 + translateX;
+            const dx = mouseX - startX;
+            const new_dx = dx * actualFactor;
+            const newMouseX = startX + new_dx;
+            
+            container.scrollLeft = newMouseX - offsetX;
+            
+        }, { passive: false });
+    </script>
+</body>
+</html>
